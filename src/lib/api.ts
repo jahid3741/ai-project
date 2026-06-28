@@ -1,76 +1,102 @@
 import axios from "axios";
 
-// 1. Connects to the Express backend we built earlier on port 4000!
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL:
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://backend-l0ha.onrender.com/api",
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
 });
 
-// --- REQUEST INTERCEPTOR ---
-// This magically grabs your Clerk security token from the browser
-// and attaches it to every request automatically. No more messy headers!
+// ================================
+// Request Interceptor
+// ================================
 api.interceptors.request.use(
   async (config) => {
-    if (typeof window !== "undefined" && (window as any).Clerk?.session) {
-      const token = await (window as any).Clerk.session.getToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+    try {
+      if (typeof window !== "undefined") {
+        const clerk = (window as any).Clerk;
+
+        if (clerk?.session) {
+          const token = await clerk.session.getToken();
+
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        }
       }
+
+      return config;
+    } catch (err) {
+      console.error("Token Error:", err);
+      return config;
     }
-    return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error)
 );
 
-// --- RESPONSE INTERCEPTOR ---
-// If the Express backend throws an error, this catches it globally
-// so it doesn't crash your frontend completely.
+// ================================
+// Response Interceptor
+// ================================
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   (error) => {
-    const errorMessage = error.response?.data?.error || error.message;
-    console.error("🚨 API Error:", errorMessage);
+    console.error(
+      "API Error:",
+      error.response?.status,
+      error.response?.data || error.message
+    );
+
     return Promise.reject(error);
-  },
+  }
 );
 
-// ==========================================
-// EXPORTED API FUNCTIONS (Your Clean Shortcuts)
-// ==========================================
-
+// ================================
+// Items
+// ================================
 export const getItems = async (params = {}) => {
-  const response = await api.get("/items", { params });
-  return response.data;
+  const { data } = await api.get("/items", { params });
+  return data;
 };
 
 export const getItem = async (id: string) => {
-  const response = await api.get(`/items/${id}`);
-  return response.data;
+  const { data } = await api.get(`/items/${id}`);
+  return data;
 };
 
-export const generateContent = async (prompt: string, type: string) => {
-  const response = await api.post("/ai/generate", { prompt, type });
-  return response.data;
+// ================================
+// AI
+// ================================
+export const generateContent = async (
+  prompt: string,
+  toolSlug: string
+) => {
+  const { data } = await api.post("/ai/generate", {
+    prompt,
+    toolSlug,
+  });
+
+  return data;
 };
 
-export const getRecommendations = async (itemIds: string[]) => {
-  const response = await api.post("/ai/recommendations", {
+export const getRecommendations = async (
+  itemIds: string[]
+) => {
+  const { data } = await api.post("/ai/recommendations", {
     viewedItemIds: itemIds,
   });
-  return response.data;
+
+  return data;
 };
 
+// ================================
+// Admin
+// ================================
 export const getStats = async () => {
-  const response = await api.get("/admin/stats");
-  return response.data;
+  const { data } = await api.get("/admin/stats");
+  return data;
 };
 
 export default api;
